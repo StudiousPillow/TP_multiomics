@@ -1,0 +1,113 @@
+---
+title: "Multi_TP"
+author: "Léopold"
+date: "2024-10-16"
+output: html_document
+---
+
+```{r}
+# devtools::install_github("abodein/netOmics")
+library(tidyverse)
+library(mixOmics)
+
+data <- readRDS("data_vitC.Rds")
+
+hist(data$RNA)
+```
+
+```{r}
+datanett <- data$RNA[,colSums(data$RNA) > 10]
+
+datanett[datanett==0]<-0.1
+```
+
+```{r}
+coef.var <- function(x){
+  c.var = sd(x)/mean(x)
+}
+coef.mRNA <- as.numeric(apply(datanett,2,coef.var))
+hist(coef.mRNA, xlim = range(0,3))
+```
+
+```{r}
+data.filtered <- datanett[,abs(coef.mRNA) > 0.6]
+
+sum_expression <- colMeans(data.filtered,na.rm = T)
+sorted.genes <- sort(sum_expression,decreasing = T)
+top.genes <- sorted.genes[1:50] %>% names()
+```
+
+```{r}
+data.logged <- log(data.filtered)
+data.scaled <- scale(data.filtered, center = TRUE, scale = TRUE)
+
+scaled.maxvar.genes <- data.scaled[,top.genes]
+```
+
+```{r}
+library(mixOmics)
+pcares <- pca(scaled.maxvar.genes, ncomp=10,center = T,scale = T)
+plot(pcares)
+plotIndiv(pcares, col = rainbow(36))
+plotVar(pcares,col = list(rainbow(50)),var.names = F)
+```
+```{r}
+spcares <- spca(scaled.maxvar.genes, ncomp=2,keepX=c(10,5))
+plotIndiv(spcares, col = rainbow(36))
+plotVar(spcares,col = list(rainbow(50)),var.names = F)
+```
+
+```{r}
+datanett2 <- data$prot[,colSums(data$prot) > 10]
+
+datanett2[datanett2==0]<-0.1
+
+coef.var <- function(x){
+  c.var = sd(x)/mean(x)
+}
+coef.prot <- as.numeric(apply(datanett2,2,coef.var))
+hist(coef.prot, xlim = range(0,3))
+
+data.filtered2 <- datanett2[,abs(coef.prot) > 0.1]
+
+sum_expression2 <- colMeans(data.filtered2,na.rm = T)
+sorted.prot <- sort(sum_expression2,decreasing = T)
+top.prot <- sorted.prot[1:50] %>% names()
+
+data.logged2 <- log(data.filtered2)
+data.scaled2 <- scale(data.filtered2, center = TRUE, scale = TRUE)
+
+scaled.maxvar.prot <- data.scaled2[,top.prot]
+```
+
+
+```{r}
+plsda.res <- plsda(scaled.maxvar.genes,data$sample_info$Sex,ncomp=2)
+plotIndiv(plsda.res,ellipse = T,legend=T)
+plotLoadings(plsda.res,names.var=F)
+plotVar(plsda.res,var.names = T)
+```
+
+```{r}
+splsda.res <- splsda(scaled.maxvar.genes,data$sample_info$Sex,keepX = c(50,30))
+plotIndiv(splsda.res,ellipse = T,legend = T)
+plotVar(splsda.res,var.names = F)
+```
+
+```{r}
+pls.res <- pls(scaled.maxvar.genes,scaled.maxvar.prot,ncomp=2)
+plotIndiv(pls.res, col = rainbow(36))
+plotVar(pls.res,var.names = T)
+plotArrow(pls.res)
+```
+
+```{r}
+spls.res <- spls(scaled.maxvar.genes,data$prot,ncomp=2, keepX = c(5,3), keepY = c(3,2))
+plotVar(spls.res,var.names = F)
+plotArrow(spls.res)
+```
+
+```{r}
+
+```
+

@@ -1,0 +1,83 @@
+---
+title: "multiomics_tp"
+output: html_document
+date: "2024-10-16"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(mixOmics)
+```
+
+## Importation des données en R et présentation du dataset
+
+```{r}
+data <- readRDS("Datasets/data_vitC.Rds")
+print(dim(data$prot))
+print(dim(data$RNA))
+print(dim(data$sample_info))
+## 36 mices, 2392 protéines, 36066 gènes, 4 blocs (vitC+sex)
+```
+36 mices, 2392 protéines, 36066 gènes
+
+
+
+# Analyse préliminaire 
+## Preprocessing
+
+```{r}
+sum(is.na(data$RNA)) ## 0 donc pas de NA
+get_vari = function(x){return(sd(x)/mean(x))}
+threshold = 6
+RNA_sd = apply(data$RNA, 2, get_vari)%>%
+  sort(decreasing = TRUE)
+genes_to_keep = RNA_sd[which(RNA_sd>threshold)]%>%
+  names()
+RNA = data$RNA[,genes_to_keep]
+# RNA[,colSums(RNA != 0) > 0]
+# RNA_log = apply(RNA, c(1,2),log)
+RNA_scale = scale(RNA, center = TRUE, scale = TRUE)
+dim(RNA_scale)
+print(colnames(RNA_scale)[1:10])
+```
+```{r}
+hist(RNA_scale)
+```
+```{r}
+sum(is.na(data$prot)) ## 0 donc pas de NA
+
+threshold = 100
+get_vari = function(x){return(sd(x)/mean(x))}
+prot_sd = apply(data$prot, 2, get_vari)%>%
+  sort(decreasing = TRUE)
+genes_to_keep = prot_sd[which(prot_sd>threshold)]%>%
+  names()
+prot = data$prot[,genes_to_keep]
+# prot[,colSums(prot != 0) > 0]
+# prot_log = apply(prot, c(1,2),log)
+prot_scale = scale(prot, center = TRUE, scale = TRUE)
+dim(prot_scale)
+print(colnames(prot_scale)[1:10])
+```
+# Analyse en Composante Principale
+?pour chaque bloc
+
+```{r}
+PCA_rna = pca(RNA_scale)
+plotIndiv(PCA_rna, group = data$sample_info$group)
+```
+
+```{r}
+plotVar(PCA, var.names = FALSE)
+```
+
+```{r}
+PCA_prot = pca(prot_scale)
+plotIndiv(PCA_prot, group = data$sample_info$group)
+```
+
+```{r}
+plotVar(PCA_prot, var.names = FALSE)
+```
+
