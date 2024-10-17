@@ -5,109 +5,189 @@ date: "2024-10-16"
 output: html_document
 ---
 
+Importation des données en R
+
 ```{r}
 # devtools::install_github("abodein/netOmics")
 library(tidyverse)
 library(mixOmics)
 
-data <- readRDS("data_vitC.Rds")
+data <- readRDS("~/Documents/TP_multiomics/Datasets/data_vitC.Rds")
+```
+Présentation du dataset
 
+```{r}
+print(dim(data$RNA))
+print(dim(data$prot))
+print(dim(data$sample_info))
 hist(data$RNA)
 ```
+36 mices, 2392 protéines, 36066 gènes
 
+Analyse préliminaire
+
+Preprocessing
+
+Présentation des distributions des features, par échantillons, par classes, par bloc?
+
+filterer les features peu abondants 
 ```{r}
+# retirer les colonnes/gènes avec aucune expression
 datanett <- data$RNA[,colSums(data$RNA) > 10]
 
+# Remplacer les 0 par des 0.1 pour pouvoir utiliser log
 datanett[datanett==0]<-0.1
 ```
-
+et avec peu de variabilité
 ```{r}
+## On calcule la variabilité
 coef.var <- function(x){
   c.var = sd(x)/mean(x)
 }
 coef.mRNA <- as.numeric(apply(datanett,2,coef.var))
+## la variabilité des gènes (la majorité ne varie pas beaucoup)
 hist(coef.mRNA, xlim = range(0,3))
 ```
-
+log/scaler les données
+Après vos filtres combien reste-il de features ?
+Quels sont les gènes les plus variants ? les protéines ? Quels sont leurs rôles biologiques ?
 ```{r}
+## filtrer les données en gardant uniquement les plus variés
 data.filtered <- datanett[,abs(coef.mRNA) > 0.6]
-
-sum_expression <- colMeans(data.filtered,na.rm = T)
-sorted.genes <- sort(sum_expression,decreasing = T)
+## prendre uniquement les gènes ayant une expression plus élevée (pas les plus variables)
+mean_expression <- colMeans(data.filtered,na.rm = T)
+sorted.genes <- sort(mean_expression,decreasing = T)
 top.genes <- sorted.genes[1:50] %>% names()
 ```
-
+Donc on log mais en fait on utilise le scaling ?
 ```{r}
 data.logged <- log(data.filtered)
 data.scaled <- scale(data.filtered, center = TRUE, scale = TRUE)
 
 scaled.maxvar.genes <- data.scaled[,top.genes]
-```
-
-```{r}
-library(mixOmics)
-pcares <- pca(scaled.maxvar.genes, ncomp=10,center = T,scale = T)
-plot(pcares)
-plotIndiv(pcares, col = rainbow(36))
-plotVar(pcares,col = list(rainbow(50)),var.names = F)
+hist(scaled.maxvar.genes)
 ```
 ```{r}
-spcares <- spca(scaled.maxvar.genes, ncomp=2,keepX=c(10,5))
-plotIndiv(spcares, col = rainbow(36))
-plotVar(spcares,col = list(rainbow(50)),var.names = F)
-```
-
-```{r}
+## processing for prot
 datanett2 <- data$prot[,colSums(data$prot) > 10]
-
 datanett2[datanett2==0]<-0.1
-
 coef.var <- function(x){
   c.var = sd(x)/mean(x)
 }
 coef.prot <- as.numeric(apply(datanett2,2,coef.var))
 hist(coef.prot, xlim = range(0,3))
-
 data.filtered2 <- datanett2[,abs(coef.prot) > 0.1]
-
-sum_expression2 <- colMeans(data.filtered2,na.rm = T)
-sorted.prot <- sort(sum_expression2,decreasing = T)
+mean_expression2 <- colMeans(data.filtered2,na.rm = T)
+sorted.prot <- sort(mean_expression2,decreasing = T)
 top.prot <- sorted.prot[1:50] %>% names()
 
 data.logged2 <- log(data.filtered2)
 data.scaled2 <- scale(data.filtered2, center = TRUE, scale = TRUE)
 
 scaled.maxvar.prot <- data.scaled2[,top.prot]
+hist(scaled.maxvar.prot)
+```
+
+Le gène le plus variant est-il traduit et présent dans le dataset ?
+```{r}
+traduction = readRDS('~/Documents/TP_multiomics/Supp/mouse_gene_to_coding_protein.Rds')
+top.genes.trad = traduction[which(traduction$ENSEMBL %in% top.genes),]
+top.genes[which(!top.genes %in% traduction$ENSEMBL)] ## genes not in the matching table = 30
+top.genes.trad
+
+## epissage alternatif
+# table(traduction$ENSEMBL)[which(table(traduction$ENSEMBL)>1)]
+# traduction[which(traduction$ENSEMBL=="ENSMUSG00000024038"),]
+  # select(colnames(scaled.maxvar.prot)[which(colnames(scaled.maxvar.prot) %in% top.genes.trad$UNIPROT)])
+
+scaled.maxvar.prot%>%
+  as.data.frame()%>%
+  dplyr::select(any_of(as.vector(top.genes.trad$UNIPROT)))
+## 4 column so 4 proteins are present in the filtered protein dataset from the 20 genes for which we have the traduction from the 50 top expressed genes
+```
+
+Analyse en Composante Principale
+PCA
+```{r}
+library(mixOmics)
+pcares <- pca(scaled.maxvar.genes, ncomp=10,center = T,scale = T)
+plot(pcares)
+plotIndiv(pcares, group = data$sample_info$group, legend = T, ind.names = F, title = "PCA_gene_ind") ## mod
+
+# rna_groups = data$sample_info$group%>%as.list()
+# names(rna_groups) = rownames()
+
+plotVar(pcares, var.names = F)
+```
+```{r}
+spcares <- spca(scaled.maxvar.genes, ncomp=2,keepX=c(10,5))
+plotIndiv(spcares, group = data$sample_info$group, legend = T, ind.names = F, title = "sPCA_ind") 
+plotVar(spcares,col = list(rainbow(50)),var.names = F)
 ```
 
 
 ```{r}
-plsda.res <- plsda(scaled.maxvar.genes,data$sample_info$Sex,ncomp=2)
-plotIndiv(plsda.res,ellipse = T,legend=T)
+pcares2 <- pca(scaled.maxvar.prot, ncomp=10,center = T,scale = T)
+plot(pcares2)
+plotIndiv(pcares2, group = data$sample_info$group, ind.names = F, legend = T, title = "PCA_prot_ind") ## mod
+plotVar(pcares2, var.names = F)
+```
+sPCA
+```{r}
+spcares = spca(scaled.maxvar.genes)
+plot(spcares)
+plotIndiv(spcares, group = data$sample_info$group, ind.names = F, legend = T, title = "sPCA_gene_ind") ## mod
+plotVar(spcares, var.names = F)
+```
+```{r}
+spcares2 = spca(scaled.maxvar.prot)
+plot(spcares2)
+plotIndiv(spcares2, group = data$sample_info$group, ind.names = F, legend = T, title = "sPCA_prot_ind") ## mod
+plotVar(spcares2, var.names = F)
+```
+PLSDA
+```{r}
+plsda.res <- plsda(scaled.maxvar.genes,data$sample_info$group,ncomp=2) ## Use group instead of Sex ?
+plotIndiv(plsda.res,ellipse = F,legend=T, ind.names = F, title = "PLSDA_gene_ind") # group = data$sample_info$group, 
 plotLoadings(plsda.res,names.var=F)
-plotVar(plsda.res,var.names = T)
+plotVar(plsda.res,var.names = F)
 ```
 
 ```{r}
-splsda.res <- splsda(scaled.maxvar.genes,data$sample_info$Sex,keepX = c(50,30))
-plotIndiv(splsda.res,ellipse = T,legend = T)
-plotVar(splsda.res,var.names = F)
+plsda.res2 <- plsda(scaled.maxvar.prot,data$sample_info$group,ncomp=2)
+plotIndiv(plsda.res2,ellipse = F,legend=T, ind.names = F, title = "PLSDA_gene_ind") # group = data$sample_info$group, 
+plotLoadings(plsda.res2,names.var=F)
+plotVar(plsda.res2,var.names = F)
 ```
 
+La plsda des gènes permet une meilleure séparation des groupes que la pca ou spca des gènes et des protéines. 
+
+# Analyse d’intégration
+## PLS
 ```{r}
 pls.res <- pls(scaled.maxvar.genes,scaled.maxvar.prot,ncomp=2)
-plotIndiv(pls.res, col = rainbow(36))
-plotVar(pls.res,var.names = T)
+plotIndiv(pls.res, ind.names = F, legend = T, group = data$sample_info$group)
+plotVar(pls.res,var.names = F)
 plotArrow(pls.res)
 ```
-
+## sPLS
 ```{r}
 spls.res <- spls(scaled.maxvar.genes,data$prot,ncomp=2, keepX = c(5,3), keepY = c(3,2))
+plotIndiv(spls.res, ind.names = F, legend = T, group = data$sample_info$group)
 plotVar(spls.res,var.names = F)
 plotArrow(spls.res)
 ```
 
+## Diablo
+Pas nécessaire, on a pas assez de ?
+
+# Mise en réseau
+## Réseaux de régulation de gène
+
+A partir des gènes filtrés, construisez un GRN avec netOmics
 ```{r}
 
 ```
+
+
 
