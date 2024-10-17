@@ -1,1 +1,3 @@
 sPCA better than PCA when some data might not be interesting at all, and you don't want to include all of it in your components
+
+https://docs.google.com/presentation/d/1dkOyCgycaEK-jgyM4MK8KWUbAvlPVYsyyUJFZAREFdw/edit#slide=id.g30b6c06ea6c_0_57
