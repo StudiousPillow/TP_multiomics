@@ -186,8 +186,48 @@ Pas nécessaire, on a pas assez de ?
 
 A partir des gènes filtrés, construisez un GRN avec netOmics
 ```{r}
+library(netOmics)
+library(igraph)
+gene_grn = get_grn(scaled.maxvar.genes, method = 'aracne')
+vcount(gene_grn) # vertices = sommets
+ecount(gene_grn) # = arêtes
+sum(degree(gene_grn) == 0) # nb sommets déconectés
+connexions = degree(gene_grn)%>%
+  sort(decreasing = T)
+most_connect = connexions[1]%>%
+  names()
+gene_grn%>%
+  plot(, vertex.label = NA)
+hist(connexions)
 
+hubs = names(connexions)
+grn = induced_subgraph(gene_grn, vids = hubs)
+layout = layout_with_fr(grn)
+# edge.width = edge.attributes(grn)
+plot(gene_grn, layout = layout, vertex.size = connexions, vertex.label = NA, edge.width = 4, )
+```
+## Réseaux PPI
+
+```{r}
+mouse_ppi = readRDS("../Supp/mouse_PPI.Rds")
+our_prout = mouse_ppi[which(mouse_ppi$UNIPROT_1 %in% top.prot),]
+pipi = graph_from_data_frame(our_prout)
+vcount(pipi)
+ecount(pipi)
+prout_connect = degree(pipi)%>%
+  sort(decreasing = T)
+prout_connect[which(prout_connect==0)] ## accun déconnecté
+most_prot = prout_connect[1]%>%names()
+hist(prout_connect, breaks = 100)
 ```
 
+```{r}
+TFtogene = readRDS("../Supp/mouse_TF_to_targeted_gene.Rds")
+our_genes = traduction[which(traduction$ENSEMBL %in% top.genes),]
+colnames(our_genes) = c("UNIPROT_1","UNIPROT_2")
+full_connect = bind_rows(our_prout, our_genes)
+gene_prot = graph_from_data_frame(full_connect)
+plot(gene_prot, vertex.label = NA)
+```
 
 
