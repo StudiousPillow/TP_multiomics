@@ -1,0 +1,1 @@
+sPCA better than PCA when some data might not be interesting at all, and you don't want to include all of it in your components
