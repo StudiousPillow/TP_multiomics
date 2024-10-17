@@ -224,10 +224,78 @@ hist(prout_connect, breaks = 100)
 ```{r}
 TFtogene = readRDS("../Supp/mouse_TF_to_targeted_gene.Rds")
 our_genes = traduction[which(traduction$ENSEMBL %in% top.genes),]
-colnames(our_genes) = c("UNIPROT_1","UNIPROT_2")
-full_connect = bind_rows(our_prout, our_genes)
-gene_prot = graph_from_data_frame(full_connect)
+# colnames(our_genes) = c("UNIPROT_1","UNIPROT_2")
+# full_connect = bind_rows(our_prout, our_genes)
+gene_prot = graph_from_data_frame(our_genes)
 plot(gene_prot, vertex.label = NA)
+gp_connect = degree(gene_prot)%>%
+  sort(decreasing = T)
+most_geneprot = gp_connect[1]%>%names()
+hist(gp_connect, breaks = 100)
+communities <- cluster_louvain(as.undirected(gene_prot))
+modularity_score <- modularity(communities)
+modularity_score  ## 0.945 donc proche de 1 donc les communautés sont bien définies
+```
+```{r}
+set.seed(4)
+# random_walk <- function(graph, start_vertex, steps) {
+#   current_vertex <- start_vertex
+#   visited <- c(current_vertex)
+#   for (i in 1:steps) {
+#     neighbors <- neighbors(graph, current_vertex)
+#     if (length(neighbors) == 0) break  # Si pas de voisins, arrêter
+#     current_vertex <- sample(neighbors, 1)  # Choisir un voisin aléatoirement
+#     visited <- c(visited, current_vertex)  # Enregistrer le nœud visité
+#   }
+#   return(visited)
+# }
+
+start_node <- V(gene_prot)[1]
+
+
+# visited_nodes <- random_walk(gene_prot, start_node, 100)
+
+random_walk_result <- random_walk(gene_prot, start = 1, steps = 1000)
+visit_counts <- table(random_walk_result)
+visit_counts
+random_walk_result
 ```
 
+
+```{r}
+install.packages("clusterProfiler")
+install.packages("org.Hs.eg.db")  # Pour l'analyse sur les gènes humains
+library(clusterProfiler)
+library(org.Hs.eg.db)
+```
+```{r}
+datamix <-list(RNA=scaled.maxvar.genes,prot=scaled.prots)
+design <- matrix(0.1, ncol = 2, nrow = 2)  # Faible taux de corrélation attendu entre ARN et protéines
+diag(design) <- 0
+diablo <- block.plsda(datamix,data$sample_info$Sex)
+plotIndiv(diablo,ind.names = FALSE,
+          legend = TRUE, ellipse = TRUE)
+plotVar(diablo,var.names = F)
+plotArrow(diablo)
+
+png("Network_filtered1.png", width = 1000, height = 1000, res = 100)
+
+network(
+  mat = diablo,  # Objet contenant les données du modèle PLS/CCA
+  blocks = c(1, 2),  # Sélection des blocs de variables à afficher
+  cutoff = 0.85,  # Augmenter le seuil pour réduire le nombre de connexions affichées
+  graph.scale = 0.3,  # Ajuster l'échelle du graphe pour plus d'espace entre les nœuds
+  size.node = 0.2,  # Taille des nœuds ajustée
+  color.node = c("lightblue", "orange"),  # Couleurs des nœuds X et Y
+  shape.node = c("circle", "rectangle"),  # Forme des nœuds (X: cercle, Y: carré)
+  cex.node.name = 0.6,  # Taille réduite des étiquettes pour éviter le chevauchement
+  color.edge = color.GreenRed(100),  # Palette de couleurs des arêtes
+  lty.edge = "solid",  # Style des lignes d'arêtes
+  lwd.edge = 0.5,  # Largeur des arêtes
+  show.edge.labels = FALSE,  # Ne pas afficher les étiquettes des arêtes
+  plot.graph = TRUE  # Afficher le réseau
+)
+
+dev.off()
+```
 
